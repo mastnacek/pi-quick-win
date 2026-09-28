@@ -46,18 +46,48 @@ test("completions follow the trailing-space contract", () => {
   const items = command.getArgumentCompletions("") ?? [];
   const byLabel = new Map(items.map((i) => [i.label, i]));
 
-  for (const leaf of ["info", "later", "clear", "off", "on"]) {
-    assert.ok(byLabel.has(leaf), `${leaf} must be offered`);
-    assert.equal(byLabel.get(leaf).value, leaf, `${leaf} is terminal — no trailing space`);
+  for (const leaf of ["info", "later", "clear", "on", "off"]) {
+    const item = byLabel.get(leaf) ?? items.find((i) => i.label.startsWith(leaf));
+    assert.ok(item, `${leaf} must be offered`);
+    assert.equal(item.value, leaf, `${leaf} is terminal — clean value, no trailing space`);
   }
   assert.equal(byLabel.get("--global").value, "--global ", "--global is a prefix — trailing space");
+});
+
+test("the settings menu marks the value in effect, live", () => {
+  const enabled = setup({ config: { enabled: true, echo: true } });
+  const enabledRows = new Map((enabled.command.getArgumentCompletions("") ?? []).map((i) => [i.label, i]));
+
+  assert.ok(enabledRows.has("on ✓"), "the active toggle carries the marker in its label");
+  assert.ok(enabledRows.has("off"), "the inactive toggle carries no marker");
+  assert.match(enabledRows.get("on ✓").description, /● AKTIVNÍ/);
+  assert.ok(!/AKTIVNÍ/.test(enabledRows.get("off").description));
+  assert.equal(enabledRows.get("on ✓").value, "on", "the marker must never enter `value`");
+
+  const muted = setup({ config: { enabled: false, echo: true } });
+  const mutedRows = new Map((muted.command.getArgumentCompletions("") ?? []).map((i) => [i.label, i]));
+  assert.ok(mutedRows.has("off ✓"), "after muting, the marker moves to off");
+  assert.match(mutedRows.get("off ✓").description, /● AKTIVNÍ/);
+});
+
+test("the menu reads live state, not a snapshot taken at registration", () => {
+  const { command, state } = setup({ config: { enabled: true, echo: true } });
+  assert.ok((command.getArgumentCompletions("") ?? []).some((i) => i.label === "on ✓"));
+
+  state.config.enabled = false;
+
+  assert.ok(
+    (command.getArgumentCompletions("") ?? []).some((i) => i.label === "off ✓"),
+    "the menu must re-read the config on every completion",
+  );
 });
 
 test("typing a prefix narrows the menu instead of clearing it", () => {
   const { command } = setup();
   assert.deepEqual(
-    (command.getArgumentCompletions("o") ?? []).map((i) => i.label),
-    ["off", "on"],
+    (command.getArgumentCompletions("o") ?? []).map((i) => i.label).sort(),
+    ["off", "on ✓"],
+    "filtering must ignore the marker",
   );
   assert.equal(command.getArgumentCompletions("zzz"), null);
 });
@@ -67,12 +97,12 @@ test("--global only offers leaves it can actually carry", () => {
   const items = command.getArgumentCompletions("--global ") ?? [];
 
   assert.deepEqual(
-    items.map((i) => i.label),
-    ["off", "on"],
+    items.map((i) => i.value).sort(),
+    ["--global off", "--global on"],
     "info/later/clear are not settings and must not be offered under --global",
   );
   for (const item of items) {
-    assert.equal(item.value, `--global ${item.label}`, "value replaces the whole argument line");
+    assert.ok(/● AKTIVNÍ/.test(item.description) || /Unmute|Mute/.test(item.description));
   }
 });
 

@@ -25,7 +25,9 @@ pi install git:github.com/mastnacek/pi-quick-win
   the closing echo, and it refuses when nothing was approved or the evidence is empty.
 - **One card per task** — a hard limit, re-armed by your next prompt. The plugin cannot nag mid-task.
 - **`later` queue** — deferred wins are stored as session entries (zero model tokens), survive `/reload` and
-  compaction, and show as `later: N` in the statusline.
+  compaction, and show as `quick-win: N later` in the statusline.
+- **Visible state** — a muted plugin shows `quick-win: off` on the statusline from session start, and the
+  completion menu marks the value in effect (`on ✓` / `off ✓` with ` · ● AKTIVNÍ`). No `/quick-win info` needed.
 - **Silent outside the TUI** — in `--mode json`, `--mode print` and `--mode rpc` no card and no statusline are
   painted; the increment is handed to the agent anyway.
 
@@ -74,7 +76,7 @@ the other (inherited) values. Keys: `enabled`, `echo`.
 ## Development
 
 ```bash
-npm test          # 46 tests: card kernel, tools, overlay, deferred queue, commands, integration
+npm test          # 51 tests: card kernel, tools, overlay, deferred queue, commands, integration
 npx tsc --noEmit  # type check
 ```
 

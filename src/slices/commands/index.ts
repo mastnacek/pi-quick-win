@@ -9,7 +9,7 @@
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { saveConfig } from "../../shared/config.js";
-import { setStatus } from "../../shared/status.js";
+import { paintBadge } from "../../shared/status.js";
 import type { SelfQuickWinState } from "../../shared/state.js";
 
 /** Operations the command needs, supplied by the composition root. */
@@ -30,14 +30,36 @@ const GLOBAL_ROW: Row = {
 	description: "Save the following setting globally (~/.pi/agent/)",
 };
 
-const SUBCOMMANDS: readonly Row[] = [
-	{ label: "info", value: "info", description: "Show state and the deferred count" },
-	{ label: "later", value: "later", description: "List deferred quick wins" },
-	{ label: "clear", value: "clear", description: "Empty the deferred list" },
-	{ label: "off", value: "off", description: "Mute the plugin (no cards, no echo)" },
-	{ label: "on", value: "on", description: "Unmute the plugin" },
-	GLOBAL_ROW,
-];
+/** The two setting leaves, with the value currently in effect marked. */
+function toggleRows(enabled: boolean): Row[] {
+	return [
+		{
+			// `value` stays a clean token: it is inserted verbatim into the editor.
+			label: enabled ? "on ✓" : "on",
+			value: "on",
+			description: `Unmute the plugin${enabled ? " · ● AKTIVNÍ" : ""}`,
+		},
+		{
+			label: enabled ? "off" : "off ✓",
+			value: "off",
+			description: `Mute the plugin (no cards, no echo)${enabled ? "" : " · ● AKTIVNÍ"}`,
+		},
+	];
+}
+
+/**
+ * Setting catalogue, read live so the menu never shows a stale snapshot.
+ * `off`/`on` are settings; `info`/`later`/`clear` are actions and carry no state.
+ */
+function catalogue(enabled: boolean): readonly Row[] {
+	return [
+		{ label: "info", value: "info", description: "Show state and the deferred count" },
+		{ label: "later", value: "later", description: "List deferred quick wins" },
+		{ label: "clear", value: "clear", description: "Empty the deferred list" },
+		...toggleRows(enabled),
+		GLOBAL_ROW,
+	];
+}
 
 const SETTING_SUBS = new Set(["off", "on"]);
 
@@ -47,31 +69,43 @@ function firstToken(text: string): string {
 	return head;
 }
 
+/** The bare token of a row label, without the `✓` state marker. */
+function bare(label: string): string {
+	const [token = ""] = label.split(" ");
+	return token;
+}
+
 /** Completion rows for everything after `/quick-win `. */
-function completions(prefix: string): Row[] | null {
+function completions(prefix: string, enabled: boolean): Row[] | null {
+	const rows = catalogue(enabled);
 	const trimmed = prefix.trimStart();
 	const afterGlobal = trimmed.startsWith("--global") ? trimmed.slice(8).trimStart() : null;
 
 	const clean = (text: string, global: boolean): Row[] | null => {
 		const head = firstToken(text).toLowerCase();
-		const items = SUBCOMMANDS.filter((row) => row.label !== "--global" && row.label.startsWith(head));
+		const items = rows.filter((row) => row.label !== "--global" && startsWith(row.label, head));
 		if (items.length === 0) return null;
 		if (!global) return [...items];
 		return items.map((row) =>
 			// `value` replaces the whole argument string, so the prefix is re-applied.
-			SETTING_SUBS.has(row.label) ? { ...row, value: `--global ${row.value}` } : row,
+			SETTING_SUBS.has(bare(row.label)) ? { ...row, value: `--global ${row.value}` } : row,
 		);
 	};
 
 	if (afterGlobal === null) {
-		const items = SUBCOMMANDS.filter((row) => row.label.startsWith(trimmed.toLowerCase()));
+		const items = rows.filter((row) => startsWith(row.label, trimmed.toLowerCase()));
 		return items.length > 0 ? [...items] : null;
 	}
 
 	// `--global` was typed: offer the setting leaves it can actually carry.
 	if (afterGlobal === "" && !/\s$/.test(trimmed)) return [GLOBAL_ROW];
-	const items = clean(afterGlobal, true).filter((row) => SETTING_SUBS.has(row.label));
+	const items = clean(afterGlobal, true).filter((row) => SETTING_SUBS.has(bare(row.label)));
 	return items.length > 0 ? items : null;
+}
+
+/** Match on the bare token: the `✓` marker must not affect filtering. */
+function startsWith(label: string, prefix: string): boolean {
+	return bare(label).startsWith(prefix);
 }
 
 function handleToggle(
@@ -88,7 +122,8 @@ function handleToggle(
 	if (!ctx.hasUI) return;
 	const scope = isGlobal ? "globally" : "for this project";
 	ctx.ui.notify(enabled ? `quick-win enabled ${scope}.` : `quick-win muted ${scope}.`, "info");
-	if (!enabled) setStatus(ctx, undefined);
+	// Repaint immediately: the mute state is visible without asking for it.
+	paintBadge(state, ctx);
 }
 
 function describeInfo(state: SelfQuickWinState, ctx: ExtensionCommandContext): string {
@@ -108,7 +143,8 @@ export function registerQuickWinCommand(
 ): void {
 	pi.registerCommand("quick-win", {
 		description: "Quick-win controls (/quick-win [info|later|clear|on|off] [--global])",
-		getArgumentCompletions: completions,
+		// Live state at completion time, never a snapshot from registration.
+		getArgumentCompletions: (prefix) => completions(prefix, state.config.enabled),
 
 		handler: async (args, ctx) => {
 			// `--global` targets ~/.pi/agent/, its absence targets <cwd>/.pi/.
@@ -129,7 +165,7 @@ export function registerQuickWinCommand(
 
 			if (sub === "clear") {
 				deps.clearLater(pi, state);
-				setStatus(ctx, undefined);
+				paintBadge(state, ctx);
 				if (ctx.hasUI) ctx.ui.notify("Deferred quick wins cleared.", "info");
 				return;
 			}

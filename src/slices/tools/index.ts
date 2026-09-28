@@ -21,7 +21,7 @@ import {
 	type QuickWinChoice,
 } from "../../shared/card.js";
 import { EFFORTS } from "../../shared/card.js";
-import { paintEcho, paintLaterStatus } from "../../shared/status.js";
+import { paintBadge, paintEcho } from "../../shared/status.js";
 import type { SelfQuickWinState } from "../../shared/state.js";
 
 /** Operations the tools need, supplied by the composition root. */
@@ -115,7 +115,7 @@ function registerQuickWin(pi: ExtensionAPI, state: SelfQuickWinState, deps: Tool
 
 			if (choice === "later") {
 				deps.recordLater(pi, state, card);
-				paintLaterStatus(state, ctx);
+				paintBadge(state, ctx);
 			}
 			if (choice === "deliver_now") {
 				state.pendingEcho = card;

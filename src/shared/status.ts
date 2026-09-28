@@ -24,10 +24,16 @@ export function setStatus(ctx: ExtensionContext, text: string | undefined): void
 	}
 }
 
-export function paintLaterStatus(state: SelfQuickWinState, ctx: ExtensionContext): void {
-	const count = state.later.length;
+export function paintBadge(state: SelfQuickWinState, ctx: ExtensionContext): void {
 	if (state.echoVisible) return;
-	setStatus(ctx, count > 0 ? `later: ${count}` : undefined);
+	// A muted plugin is a state the user must be able to see without asking for
+	// it: silent and broken look identical from the outside.
+	if (!state.config.enabled) {
+		setStatus(ctx, "quick-win: off");
+		return;
+	}
+	const count = state.later.length;
+	setStatus(ctx, count > 0 ? `quick-win: ${count} later` : undefined);
 }
 
 export function paintEcho(state: SelfQuickWinState, ctx: ExtensionContext, card: QuickWinCard): void {
@@ -39,5 +45,5 @@ export function paintEcho(state: SelfQuickWinState, ctx: ExtensionContext, card:
 export function clearEcho(state: SelfQuickWinState, ctx: ExtensionContext): void {
 	if (!state.echoVisible) return;
 	state.echoVisible = false;
-	paintLaterStatus(state, ctx);
+	paintBadge(state, ctx);
 }

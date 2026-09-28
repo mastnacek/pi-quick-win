@@ -88,7 +88,7 @@ test("tui: choosing later appends it to the session and shows the count", async 
   assert.equal(pi.entries.length, 1, "the deferred card must be written to the session");
   assert.equal(pi.entries[0].data.title, "Parser first");
   assert.ok(
-    ctx.statusCalls.some((call) => call.text === "later: 1"),
+    ctx.statusCalls.some((call) => call.text === "quick-win: 1 later"),
     `expected a later badge, got ${JSON.stringify(ctx.statusCalls)}`,
   );
 });
@@ -131,7 +131,7 @@ test("a reload rebuilds the deferred queue from session history alone", async ()
   void info;
 
   assert.ok(
-    secondCtx.statusCalls.some((call) => call.text === "later: 2"),
+    secondCtx.statusCalls.some((call) => call.text === "quick-win: 2 later"),
     `expected both deferred wins back, got ${JSON.stringify(secondCtx.statusCalls)}`,
   );
 });
@@ -150,6 +150,45 @@ test("the mute switch in the project config silences cards after a reload", asyn
   assert.equal(ctx.overlayCalls.length, 0, "muted means no card, whatever the mode");
   assert.equal(result.details.muted, true);
   assert.match(textOf(result), /muted/);
+});
+
+test("the badge tells you at a glance when the plugin is muted", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "pi-quick-win-badge-"));
+  mkdirSync(join(cwd, ".pi"), { recursive: true });
+  writeFileSync(join(cwd, ".pi", "pi-quick-win.json"), JSON.stringify({ enabled: false }), "utf8");
+
+  const pi = boot();
+  const ctx = autoChoiceCtx(pi, "skip", { cwd });
+  await fire(pi, "session_start", ctx);
+
+  assert.equal(
+    ctx.statusCalls.at(-1)?.text,
+    "quick-win: off",
+    "a muted plugin must be visible on the statusline without asking for it",
+  );
+});
+
+test("the badge counts deferred wins once unmuted", async () => {
+  const pi = boot();
+  const ctx = autoChoiceCtx(pi, "later");
+  await fire(pi, "session_start", ctx);
+  await run(pi, "quick_win", validCard({ title: "Parser first" }), ctx);
+
+  assert.equal(ctx.statusCalls.at(-1)?.text, "quick-win: 1 later");
+});
+
+test("a subagent or child session leaves the plugin inert", () => {
+  const previous = process.env.PI_SUBAGENT;
+  process.env.PI_SUBAGENT = "true";
+  try {
+    const pi = boot();
+    assert.equal(pi.tools.size, 0, "no tools may register inside a subagent");
+    assert.equal(pi.commands.size, 0, "no commands either");
+    assert.equal(pi.handlers.size, 0, "and no lifecycle hooks to recurse through");
+  } finally {
+    if (previous === undefined) delete process.env.PI_SUBAGENT;
+    else process.env.PI_SUBAGENT = previous;
+  }
 });
 
 test("shutdown drains every listener and releases the status slot", async () => {

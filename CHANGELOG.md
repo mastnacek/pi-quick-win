@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1 — 2026-09-28
+
+**Fixed**
+- The plugin now signals its configuration at first glance. A muted plugin paints `quick-win: off` on the
+  statusline from session start (silent and broken used to look identical), and `/quick-win` completions mark the
+  value in effect — `on ✓` / `off ✓` plus ` · ● AKTIVNÍ`, read live at completion time, never from a snapshot.
+- Completion filtering matched the annotated label instead of the bare token, so `--global ` offered only `off`.
+- Subagent recursion guard: the extension returns early when `PI_SUBAGENT` or `PI_CHILD_SESSION` is set, so child
+  sessions register no tools, commands or hooks.
+
 ## 0.1.0 — 2026-09-28
 
 First slice: the card, the choice, and the truthful close.

@@ -22,9 +22,14 @@ import { presentCard } from "./src/slices/overlay/index.js";
 import { registerQuickWinTools } from "./src/slices/tools/index.js";
 import { clearLater, describeLater, recordLater, restoreLater } from "./src/slices/later/index.js";
 import { registerQuickWinCommand } from "./src/slices/commands/index.js";
-import { paintLaterStatus } from "./src/shared/status.js";
+import { paintBadge } from "./src/shared/status.js";
 
 export default function quickWinExtension(pi: ExtensionAPI): void {
+	// Subagent and child sessions load every global extension. A one-card-per-task
+	// prompt surface is meaningless there and its hooks would recurse through the
+	// parent's tool calls, so this plugin stays inert (skill §8: recursion guard).
+	if (process.env.PI_SUBAGENT === "true" || Boolean(process.env.PI_CHILD_SESSION)) return;
+
 	const state = createQuickWinState(pi);
 
 	// Session init: reload the cascading config (which needs a cwd that does not
@@ -37,7 +42,7 @@ export default function quickWinExtension(pi: ExtensionAPI): void {
 			state.cardShownThisTask = false;
 			state.pendingEcho = undefined;
 			state.echoVisible = false;
-			paintLaterStatus(state, ctx);
+			paintBadge(state, ctx);
 		}),
 	);
 
