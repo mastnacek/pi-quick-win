@@ -8,6 +8,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { presentCard } from "../src/slices/overlay/index.js";
 import { validateCard } from "../src/shared/card.js";
@@ -191,6 +193,24 @@ test("the card shows the impact, the proof and the alternative cut", async () =>
   assert.match(body, /npm test -- context-bar/, "the proof must be on the card, not only in the tool text");
   assert.match(body, /Other cut/);
   assert.match(body, /deliver now/);
+});
+
+test("the header names the build that rendered the card", async () => {
+  const { version } = JSON.parse(readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8"));
+  const { component } = await driveCard(["\u001b"], 72);
+
+  assert.match(component.render(72)[0], new RegExp(`QUICK WIN v${version.replace(/\./g, "\\.")}`));
+});
+
+test("the choice rows carry no numbers at all — it is a menu, not a list", async () => {
+  const all = (await openCard("cs")).render(72);
+  const rows = all.filter((line) => /roznout ihned|později|přeskočit/.test(line));
+  assert.equal(rows.length, 3, `exactly the three choices, got ${JSON.stringify(rows)}`);
+  for (const row of rows) {
+    assert.doesNotMatch(row, /\d/, `a choice row must not show a digit: ${JSON.stringify(row)}`);
+  }
+  const footer = all.find((line) => /↑↓/.test(line));
+  assert.doesNotMatch(footer ?? "", /\d/, "the footer advertises keys, not digit shortcuts");
 });
 
 test("the card is styled like a notification: emoji labels, accent frame, highlighted choice", async () => {

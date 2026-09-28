@@ -1,6 +1,6 @@
 {
   "name": "pi-quick-win",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Names the smallest independently shippable increment when a task lands, lets you choose deliver now / later / skip, and closes the loop only on real delivery",
   "type": "module",
   "main": "index.ts",

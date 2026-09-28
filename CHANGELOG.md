@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 — 2026-09-28
+
+**Changed**
+- The card header now names the build that rendered it: `⚡ QUICK WIN v<version>`. A card from a stale runtime used to look exactly like a card from the code you are reading; the version turns "is this the new build?" into a one-glance question. The version is read from `package.json` through `import.meta.url`, so it resolves the same on Windows and POSIX, and a missing manifest degrades to `unknown` instead of breaking the card.
+- Two regression tests: the header version equals `package.json`, and no choice row or footer line contains a digit at all (the card is a menu, not a numbered list).
+
+
 ## 0.4.0 — 2026-09-28
 
 **Changed**

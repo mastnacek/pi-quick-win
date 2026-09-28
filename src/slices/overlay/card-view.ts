@@ -20,6 +20,7 @@ import { matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@ea
 import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { CHOICES, type QuickWinCard, type QuickWinChoice } from "../../shared/card.js";
 import { DEFAULT_LOCALE, stringsFor, type CardStrings, type Locale } from "../../shared/i18n.js";
+import { PLUGIN_VERSION } from "../../shared/version.js";
 
 /** One choice row: the emoji is language-neutral, the words are not. */
 const ICONS: readonly string[] = ["🚀", "📅", "⏭"];
@@ -238,7 +239,9 @@ export class CardView implements Component {
 	/** Top border: accent title, dim rule, effort badge, closing corner. */
 	private header(inner: number, badge?: string): string {
 		const th = this.theme;
-		const title = th.bold(th.fg("accent", ` ⚡ ${this.strings.title} `));
+		// The version is not decoration: it names the build that rendered this card,
+		// so a stale runtime is visible instead of debatable.
+		const title = th.bold(th.fg("accent", ` ⚡ ${this.strings.title} v${PLUGIN_VERSION} `));
 		const badgeText = badge ? th.fg("warning", ` ${badge} `) : "";
 		const fill = Math.max(0, inner - visibleWidth(title) - visibleWidth(badgeText));
 		return `${th.fg("borderAccent", "╭")}${title}${th.fg("border", "─".repeat(fill))}${badgeText}${th.fg("borderAccent", "╮")}`;
