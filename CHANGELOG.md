@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.0 — 2026-09-28
+
+**Changed**
+- The card is now a notification instead of a debug dump. Rounded accent frame, a `⚡ QUICK WIN` header with the
+  effort badge (`⏱ hour`) right-aligned, emoji-labelled field column (`🎯 Impact`, `✅ Proof`, `📋 Steps`,
+  `🔀 Other cut`, `⏱ Effort`) with per-field colors, dim separator rules instead of blank lines, a
+  full-width `selectedBg` highlight on the active choice with an accent `▸` and key digit, and a footer whose
+  key glyphs (`↑↓ 1-3 ⏎ esc`) are colored while the words stay dim.
+- Every line is still clamped to the supplied width, padding is still computed on *visible* width (emoji are two
+  cells), and the plain-text card in the tool result is untouched — the model still reads a clean, emoji-free card.
+
+**Added**
+- 2 render tests: one asserts the styling contract (emoji labels, accent/success colors, exactly one highlighted
+  row, bold header), one asserts the effort falls back into the body when a narrow terminal leaves no room in the
+  header. 53 tests total.
+
 ## 0.1.1 — 2026-09-28
 
 **Fixed**

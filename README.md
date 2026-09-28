@@ -19,7 +19,8 @@ pi install git:github.com/mastnacek/pi-quick-win
 ## What it does
 
 - **`quick_win` tool** — the agent announces one card: `title`, `impact`, `effort`, ordered `steps`, and a mandatory
-  `proof` (how we know it is done). In the TUI you get an overlay card with three choices.
+  `proof` (how we know it is done). In the TUI you get an overlay card — accent frame, emoji-labelled fields, the
+  active choice highlighted — with three choices.
   An increment without a verifiable proof is rejected before it is ever shown.
 - **`quick_win_done` tool** — the agent closes the loop with concrete evidence. This is the only thing that produces
   the closing echo, and it refuses when nothing was approved or the evidence is empty.
@@ -76,7 +77,7 @@ the other (inherited) values. Keys: `enabled`, `echo`.
 ## Development
 
 ```bash
-npm test          # 51 tests: card kernel, tools, overlay, deferred queue, commands, integration
+npm test          # 53 tests: card kernel, tools, overlay + styling, deferred queue, commands, integration
 npx tsc --noEmit  # type check
 ```
 

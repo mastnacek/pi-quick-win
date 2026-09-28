@@ -16,10 +16,32 @@ import { makeCtx, validCard } from "./fakes.js";
 const CARD = validateCard(validCard({ alternative: "Only the parser, not the printer" }));
 
 /** A theme with no styling, so width assertions measure real content. */
-const PLAIN_THEME = { fg: (_color, text) => text, bold: (text) => text };
+const PLAIN_THEME = { fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text };
+
+/** A theme that records what it was asked to paint, for the styling assertions. */
+function makeRecordingTheme() {
+  const calls = { fg: [], bg: [], bold: 0 };
+  return {
+    calls,
+    theme: {
+      fg: (color, text) => {
+        calls.fg.push(color);
+        return text;
+      },
+      bg: (color, text) => {
+        calls.bg.push(color);
+        return text;
+      },
+      bold: (text) => {
+        calls.bold += 1;
+        return text;
+      },
+    },
+  };
+}
 
 /** Drive the component the way Pi does: build it, feed keys, read the result. */
-async function driveCard(keys, width = 72) {
+async function driveCard(keys, width = 72, theme = PLAIN_THEME) {
   let component;
   const ctx = makeCtx({
     mode: "tui",
@@ -28,7 +50,7 @@ async function driveCard(keys, width = 72) {
       notify: () => {},
       custom: async (factory) => {
         return await new Promise((resolve) => {
-          component = factory(undefined, PLAIN_THEME, undefined, resolve);
+          component = factory(undefined, theme, undefined, resolve);
         });
       },
     },
@@ -121,4 +143,32 @@ test("the card shows the impact, the proof and the alternative cut", async () =>
   assert.match(body, /npm test -- context-bar/, "the proof must be on the card, not only in the tool text");
   assert.match(body, /Other cut/);
   assert.match(body, /deliver now/);
+});
+
+test("the card is styled like a notification: emoji labels, accent frame, highlighted choice", async () => {
+  const { calls, theme } = makeRecordingTheme();
+  const { component } = await driveCard(["\u001b"], 72, theme);
+  const lines = component.render(72);
+
+  const body = lines.join("\n");
+  assert.match(lines[0], /^╭.*⚡ QUICK WIN/, "the header carries the mark and the title");
+  assert.match(lines[0], /⏱ hour/, "the effort badge rides in the header");
+  assert.match(body, /🎯 Impact/, "fields are emoji-marked");
+  assert.match(body, /✅ Proof/);
+  assert.match(body, /📋 Steps/);
+  assert.match(body, /▸ 1  🚀 deliver now/, "the default row is marked with a cursor");
+  assert.match(body, /↑↓ move/, "the footer explains the keys");
+
+  assert.ok(calls.fg.includes("accent"), "the accent color is used");
+  assert.ok(calls.fg.includes("success"), "the proof field is painted as verified");
+  assert.deepEqual(calls.bg, ["selectedBg"], "exactly the selected choice row is highlighted");
+  assert.ok(calls.bold > 0, "the title, header and selected row are bold");
+});
+
+test("the effort moves into the body when the header has no room for it", async () => {
+  const { theme } = makeRecordingTheme();
+  const { component } = await driveCard(["\u001b"], 30, theme);
+  const lines = component.render(30);
+  assert.doesNotMatch(lines[0], /⏱/, "a narrow header drops the badge");
+  assert.match(lines.join("\n"), /⏱ Effort/, "the effort is still on the card");
 });
