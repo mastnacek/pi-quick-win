@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0 — 2026-09-28
+
+**Changed**
+- **The one-card-per-task wall is gone.** An all-day session now announces every new increment instead of being
+  silenced after the first card. The state is a counter (`cardsShownThisTask`) compared against a new
+  `config.cardLimit`, and `0` — the default — means unlimited, so nagging is prevented by the model's judgement
+  (a third prompt guideline: again only for a genuinely new increment) instead of a hard refusal.
+- `/quick-win info` reports the limit and the number of cards in this task instead of a yes/no.
+
+**Added**
+- `/quick-win limit <n|unlimited> [--global]`, persisted through the same config cascade (only the changed key is
+  written), with a two-level completion menu that marks the leaf in effect (`3 ✓` + ` · ● AKTIVNÍ`).
+- `normalizeConfig` in the shared config module: an unparsable, negative or fractional `cardLimit` becomes
+  unlimited, never 1 — a broken config must not silence the plugin.
+- 5 new tests (58 total): no-cap default, finite cap, counter reset on a new prompt, the `limit` completion
+  levels, partial-key persistence, and the junk-config fallback.
+
 ## 0.2.0 — 2026-09-28
 
 **Changed**

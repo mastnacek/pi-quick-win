@@ -45,13 +45,14 @@ function registerQuickWin(pi: ExtensionAPI, state: SelfQuickWinState, deps: Tool
 		label: "Quick Win",
 		description:
 			"Announce the smallest independently shippable increment of the current task and let the user choose " +
-			"deliver now / later / skip. Call it once, right after orienting and before the first large write, so the " +
-			"user sees the nearest real win instead of only activity. Requires a verifiable `proof`; an increment that " +
-			"cannot be verified will be rejected.",
+			"deliver now / later / skip. Call it before the first large write, so the user sees the nearest real " +
+			"win instead of only activity — and again whenever a genuinely new increment appears. Requires a " +
+			"verifiable `proof`; an increment that cannot be verified will be rejected.",
 		promptSnippet: "quick_win — name the smallest shippable increment; quick_win_done — close it with evidence",
 		promptGuidelines: [
-			"Call quick_win once when a non-trivial task lands: before the first large write or refactor, name the smallest independently shippable increment (impact, effort, ordered steps, and the proof that it is done).",
-			"Call quick_win_done only when that increment is actually deliverable and verified — pass the concrete evidence. Never call it for partial work, and never to celebrate activity.",
+			"Call quick_win when a non-trivial increment lands: name the smallest independently shippable one (impact, effort, ordered steps, and the proof that it is done).",
+			"Call it again only for a genuinely new increment, never twice for the same one.",
+			"Call quick_win_done only when an increment is deliverable and verified — pass the concrete evidence. Never for partial work, never to celebrate activity.",
 		],
 		parameters: Type.Object({
 			title: Type.String({
@@ -93,14 +94,14 @@ function registerQuickWin(pi: ExtensionAPI, state: SelfQuickWinState, deps: Tool
 				};
 			}
 
-			if (state.cardShownThisTask) {
+			if (state.cardLimitReached()) {
 				return {
 					content: [
 						{
 							type: "text",
 							text:
-								"A quick win was already announced in this task. Do not announce another one; " +
-								"deliver the current increment and close it with quick_win_done.",
+								`The card limit for this task (${state.config.cardLimit}) is already used up. ` +
+								"Do not announce another card; deliver the current increment and close it with quick_win_done.",
 						},
 					],
 					details: { choice: null, ui: false, duplicate: true },
@@ -111,7 +112,7 @@ function registerQuickWin(pi: ExtensionAPI, state: SelfQuickWinState, deps: Tool
 			// null = no interactive surface (json/print/rpc). Deliver without asking.
 			const choice: QuickWinChoice = chosen ?? "deliver_now";
 
-			state.cardShownThisTask = true;
+			state.cardsShownThisTask += 1;
 
 			if (choice === "later") {
 				deps.recordLater(pi, state, card);

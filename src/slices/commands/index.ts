@@ -1,10 +1,8 @@
 /**
- * `/quick-win` command — mute switch, the deferred list, and a status readout.
+ * `/quick-win` command — mute switch, card limit, the deferred list, and a status readout.
  *
- * Completions follow the Trailing Space Contract: `off`, `on`, `later`, `clear`
- * and `info` are terminal leaves (no trailing space), while nothing here takes a
- * second argument, so the only non-terminal token is the `--global` prefix that
- * every setting command must accept.
+ * Completions follow the Trailing Space Contract: `off`, `on`, `info`, `later`, `clear` and the `limit` leaves
+ * are terminal (no trailing space), while `limit` itself takes an argument and therefore offers one.
  */
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -47,21 +45,41 @@ function toggleRows(enabled: boolean): Row[] {
 	];
 }
 
+/** The card-limit leaves, with the value currently in effect marked. */
+function limitRows(limit: number): Row[] {
+	return [0, 1, 3, 10].map((value) => {
+		const token = value === 0 ? "unlimited" : String(value);
+		return {
+			label: limit === value ? `${token} ✓` : token,
+			value: token,
+			description:
+				value === 0
+					? `No cap — every new increment may be announced${limit === 0 ? " · ● AKTIVNÍ" : ""}`
+					: `At most ${value} card${value === 1 ? "" : "s"} per task${limit === value ? " · ● AKTIVNÍ" : ""}`,
+		};
+	});
+}
+
 /**
  * Setting catalogue, read live so the menu never shows a stale snapshot.
- * `off`/`on` are settings; `info`/`later`/`clear` are actions and carry no state.
+ * `off`/`on`/`limit` are settings; `info`/`later`/`clear` are actions and carry no state.
  */
-function catalogue(enabled: boolean): readonly Row[] {
+function catalogue(enabled: boolean, limit: number): readonly Row[] {
 	return [
 		{ label: "info", value: "info", description: "Show state and the deferred count" },
 		{ label: "later", value: "later", description: "List deferred quick wins" },
 		{ label: "clear", value: "clear", description: "Empty the deferred list" },
 		...toggleRows(enabled),
+		// Non-terminal: `limit` takes a value, so it keeps the trailing space.
+		{ label: "limit", value: "limit ", description: `Cards per task [● ${limit === 0 ? "unlimited" : limit}]` },
 		GLOBAL_ROW,
 	];
 }
 
-const SETTING_SUBS = new Set(["off", "on"]);
+const SETTING_SUBS = new Set(["off", "on", "limit", "unlimited", "1", "3", "10"]);
+
+/** `limit` followed by whitespace: the argument has reached the value level. */
+const LIMIT_VALUE_LEVEL = /^limit\s+/i;
 
 /** First whitespace-delimited token of the typed prefix. */
 function firstToken(text: string): string {
@@ -76,13 +94,21 @@ function bare(label: string): string {
 }
 
 /** Completion rows for everything after `/quick-win `. */
-function completions(prefix: string, enabled: boolean): Row[] | null {
-	const rows = catalogue(enabled);
+function completions(prefix: string, enabled: boolean, limit: number): Row[] | null {
+	const rows = catalogue(enabled, limit);
 	const trimmed = prefix.trimStart();
 	const afterGlobal = trimmed.startsWith("--global") ? trimmed.slice(8).trimStart() : null;
 
 	const clean = (text: string, global: boolean): Row[] | null => {
 		const head = firstToken(text).toLowerCase();
+		// `limit ` opens a second level: the leaves, narrowed by whatever follows.
+		if (LIMIT_VALUE_LEVEL.test(text)) {
+			const typed = text.replace(LIMIT_VALUE_LEVEL, "").trim().toLowerCase();
+			const leaves = limitRows(limit).filter((row) => startsWith(row.label, typed));
+			return leaves.length > 0
+				? leaves.map((row) => (global ? { ...row, value: `--global limit ${row.value}` } : row))
+				: null;
+		}
 		const items = rows.filter((row) => row.label !== "--global" && startsWith(row.label, head));
 		if (items.length === 0) return null;
 		if (!global) return [...items];
@@ -93,6 +119,9 @@ function completions(prefix: string, enabled: boolean): Row[] | null {
 	};
 
 	if (afterGlobal === null) {
+		// Without `--global` the whole argument is a plain first-level prefix —
+		// except once it has reached the `limit` value level.
+		if (LIMIT_VALUE_LEVEL.test(trimmed)) return clean(trimmed, false);
 		const items = rows.filter((row) => startsWith(row.label, trimmed.toLowerCase()));
 		return items.length > 0 ? [...items] : null;
 	}
@@ -127,13 +156,25 @@ function handleToggle(
 }
 
 function describeInfo(state: SelfQuickWinState, ctx: ExtensionCommandContext): string {
+	const limit = state.config.cardLimit;
 	return (
 		`quick-win: ${state.config.enabled ? "enabled" : "muted"}\n` +
 		`closing echo: ${state.config.echo ? "on" : "off"}\n` +
+		`card limit per task: ${limit === 0 ? "unlimited" : limit}\n` +
 		`deferred: ${state.later.length}\n` +
-		`card shown in this task: ${state.cardShownThisTask ? "yes" : "no"}\n` +
+		`cards in this task: ${state.cardsShownThisTask}\n` +
 		"scope: `--global` writes ~/.pi/agent/, otherwise <cwd>/.pi/."
 	);
+}
+
+/** Parse `unlimited` / `0` / a positive count; anything else means "leave it". */
+function parseLimit(raw: string | undefined): number | undefined {
+	if (raw === undefined) return undefined;
+	const token = raw.trim().toLowerCase();
+	if (token === "unlimited" || token === "off" || token === "0") return 0;
+	const value = Number.parseInt(token, 10);
+	if (!Number.isInteger(value) || value < 0) return undefined;
+	return value;
 }
 
 export function registerQuickWinCommand(
@@ -142,9 +183,11 @@ export function registerQuickWinCommand(
 	deps: CommandDeps,
 ): void {
 	pi.registerCommand("quick-win", {
-		description: "Quick-win controls (/quick-win [info|later|clear|on|off] [--global])",
+		description:
+			"Quick-win controls (/quick-win [info|later|clear|on|off|limit <n|unlimited>] [--global])",
 		// Live state at completion time, never a snapshot from registration.
-		getArgumentCompletions: (prefix) => completions(prefix, state.config.enabled),
+		getArgumentCompletions: (prefix) =>
+			completions(prefix, state.config.enabled, state.config.cardLimit),
 
 		handler: async (args, ctx) => {
 			// `--global` targets ~/.pi/agent/, its absence targets <cwd>/.pi/.
@@ -155,6 +198,29 @@ export function registerQuickWinCommand(
 
 			if (sub === "off" || sub === "on") {
 				handleToggle(state, sub, ctx, isGlobal);
+				return;
+			}
+
+			if (sub === "limit") {
+				const limit = parseLimit(tokens[1]);
+				if (limit === undefined) {
+					if (ctx.hasUI) {
+						ctx.ui.notify(
+							"Usage: /quick-win limit <n|unlimited> [--global]",
+							"warning",
+						);
+					}
+					return;
+				}
+				// Persist ONLY the changed key, so the nearer layer never freezes the rest.
+				saveConfig({ cardLimit: limit }, isGlobal, ctx.cwd, state.globalFile);
+				state.config = { ...state.config, cardLimit: limit };
+				if (ctx.hasUI) {
+					ctx.ui.notify(
+						`Card limit per task: ${limit === 0 ? "unlimited" : limit}${isGlobal ? " (global)" : " (project)"}`,
+						"info",
+					);
+				}
 				return;
 			}
 

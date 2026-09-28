@@ -16,11 +16,19 @@ export interface QuickWinConfig {
 	enabled: boolean;
 	/** Close the loop with a short echo on real delivery. Never a score. */
 	echo: boolean;
+	/**
+	 * How many cards one task may announce. 0 = unlimited: an all-day session
+	 * keeps landing new increments, and nagging is prevented by the model's own
+	 * judgement instead of a hard wall. A finite cap exists for the demo case,
+	 * where one card per task is the whole point.
+	 */
+	cardLimit: number;
 }
 
 export const DEFAULT_CONFIG: QuickWinConfig = {
 	enabled: true,
 	echo: true,
+	cardLimit: 0,
 };
 
 const CONFIG_DIR = join(homedir(), ".pi", "agent");
@@ -43,9 +51,21 @@ function readLayer(path: string): Partial<QuickWinConfig> {
 }
 
 export function loadConfig(cwd?: string, globalFile: string = GLOBAL_CONFIG_FILE): QuickWinConfig {
-	const fromGlobal = { ...DEFAULT_CONFIG, ...readLayer(globalFile) };
+	const fromGlobal = normalizeConfig({ ...DEFAULT_CONFIG, ...readLayer(globalFile) });
 	if (!cwd) return fromGlobal;
-	return { ...fromGlobal, ...readLayer(projectConfigPath(cwd)) };
+	return normalizeConfig({ ...fromGlobal, ...readLayer(projectConfigPath(cwd)) });
+}
+
+/** Coerce a persisted layer into a usable config; junk becomes the default. */
+export function normalizeConfig(cfg: Partial<QuickWinConfig>): QuickWinConfig {
+	const limit = Number(cfg.cardLimit);
+	return {
+		enabled: cfg.enabled !== false,
+		echo: cfg.echo !== false,
+		// Anything unparsable, negative or fractional means "no cap", never 1:
+		// a broken config must not silence the plugin.
+		cardLimit: Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 0,
+	};
 }
 
 /**

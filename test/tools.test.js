@@ -84,18 +84,28 @@ test("the mute switch silences cards entirely", async () => {
   assert.match(textOf(result), /muted/);
 });
 
-test("one card per task — the second call stands down", async () => {
+test("no cap by default — a long session keeps announcing new increments", async () => {
   const t = setup();
   await callTool(t.card, validCard(), t.ctx);
   const second = await callTool(t.card, validCard({ title: "Another win" }), t.ctx);
 
-  assert.equal(t.presentCalls.length, 1, "the overlay must not reopen in the same task");
-  assert.equal(second.details.duplicate, true);
-  assert.match(textOf(second), /already announced/);
+  assert.equal(t.presentCalls.length, 2, "cardLimit 0 means the overlay may open again");
+  assert.equal(second.details.duplicate, undefined);
+  assert.match(textOf(second), /exactly this increment/);
 });
 
-test("a new user prompt re-arms the one-per-task limit", async () => {
-  const t = setup();
+test("a finite card limit makes the next call stand down", async () => {
+  const t = setup({ state: { config: { enabled: true, echo: true, cardLimit: 1 } } });
+  await callTool(t.card, validCard(), t.ctx);
+  const second = await callTool(t.card, validCard({ title: "Another win" }), t.ctx);
+
+  assert.equal(t.presentCalls.length, 1, "the overlay must not reopen past the cap");
+  assert.equal(second.details.duplicate, true);
+  assert.match(textOf(second), /limit/i);
+});
+
+test("a new user prompt resets the card counter", async () => {
+  const t = setup({ state: { config: { enabled: true, echo: true, cardLimit: 1 } } });
   await callTool(t.card, validCard(), t.ctx);
 
   for (const handler of t.pi.handlers.get("input") ?? []) {
@@ -103,7 +113,7 @@ test("a new user prompt re-arms the one-per-task limit", async () => {
   }
 
   await callTool(t.card, validCard({ title: "Next task" }), t.ctx);
-  assert.equal(t.presentCalls.length, 2, "a new task may announce its own win");
+  assert.equal(t.presentCalls.length, 2, "a new task gets a fresh card budget");
 });
 
 test("later records the card and paints the deferred count", async () => {
@@ -169,13 +179,14 @@ test("an invalid card throws instead of rendering", async () => {
   assert.equal(t.presentCalls.length, 0);
 });
 
-test("the tool tells the model when to call it, in two guidelines", () => {
+test("the tool tells the model when to call it, in three guidelines", () => {
   const { card } = setup();
   assert.match(card.promptSnippet, /quick_win/);
   const guidelines = card.promptGuidelines;
-  assert.equal(guidelines.length, 2);
-  assert.match(guidelines[0], /once when a non-trivial task lands/);
-  assert.match(guidelines[1], /verified/);
+  assert.equal(guidelines.length, 3);
+  assert.match(guidelines[0], /non-trivial increment lands/);
+  assert.match(guidelines[1], /genuinely new increment/, "a later card is allowed, a repeat is not");
+  assert.match(guidelines[2], /verified/);
 });
 
 test("the prompt surface stays inside its token budget", () => {

@@ -24,7 +24,8 @@ pi install git:github.com/mastnacek/pi-quick-win
   An increment without a verifiable proof is rejected before it is ever shown.
 - **`quick_win_done` tool** — the agent closes the loop with concrete evidence. This is the only thing that produces
   the closing echo, and it refuses when nothing was approved or the evidence is empty.
-- **One card per task** — a hard limit, re-armed by your next prompt. The plugin cannot nag mid-task.
+- **No cap on cards** — a long session keeps landing new increments, and every one of them may be announced.
+  The model, not a wall, decides what counts as *new*; a finite cap is available when you want one.
 - **`later` queue** — deferred wins are stored as session entries (zero model tokens), survive `/reload` and
   compaction, and show as `quick-win: N later` in the statusline.
 - **Visible state** — a muted plugin shows `quick-win: off` on the statusline from session start, and the
@@ -46,11 +47,12 @@ Keys: `↑`/`↓` or `j`/`k` select, `1`-`3` or `enter` confirm, `esc` or `q` me
 
 | Command | Effect |
 | --- | --- |
-| `/quick-win info` | State: enabled/muted, echo, deferred count, whether a card was shown this task. |
+| `/quick-win info` | State: enabled/muted, echo, card limit, deferred count, cards in this task. |
 | `/quick-win later` | List the deferred quick wins. |
 | `/quick-win clear` | Empty the deferred list. |
 | `/quick-win off` / `on` | Mute / unmute. |
 | `/quick-win off --global` | Same, persisted for all sessions instead of this project. |
+| `/quick-win limit <n\|unlimited>` | Cards allowed per task. `unlimited` (the default) is `0`; a new prompt resets the counter. |
 
 ## Configuration
 
@@ -72,7 +74,8 @@ the other (inherited) values. Keys: `enabled`, `echo`.
   one turn.
 - **Token budget.** The agent-facing policy is a two-line prompt snippet plus two guidelines (asserted under
   600 chars in the test suite). The psychology behind the design stays in the PRD, not in your context window.
-- **Not a planner.** It does not replace `/goal`, a todo list, or a backlog. One card per task, one decision.
+- **Not a planner.** It does not replace `/goal`, a todo list, or a backlog. One card per decision, announced
+  when a new increment actually lands.
 
 ## Development
 

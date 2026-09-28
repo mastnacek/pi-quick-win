@@ -1,8 +1,9 @@
 /**
  * Pipeline — the two lifecycle rules that are not the tools' business:
  *
- * 1. A new user prompt starts a new task, which re-arms the one-card-per-task
- *    limit. Nothing else may re-arm it: a timer would let the plugin nag mid-task.
+ * 1. A new user prompt starts a new task, which resets the card counter. Nothing else may reset it: a timer
+ *    would let the plugin nag mid-task. The counter is only ever compared against `config.cardLimit`, and the
+ *    default of 0 means "no cap" — a long session keeps announcing new increments.
  * 2. The closing echo lasts one turn. Clearing it here keeps timers out of the
  *    extension entirely (long-lived resources belong in session_start/shutdown).
  */
@@ -14,7 +15,7 @@ import type { SelfQuickWinState } from "../../shared/state.js";
 export function registerPipeline(pi: ExtensionAPI, state: SelfQuickWinState): void {
 	state.track(
 		pi.on("input", async () => {
-			state.cardShownThisTask = false;
+			state.cardsShownThisTask = 0;
 		}),
 	);
 

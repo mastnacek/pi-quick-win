@@ -39,7 +39,7 @@ export default function quickWinExtension(pi: ExtensionAPI): void {
 		pi.on("session_start", async (_event, ctx) => {
 			reloadConfig(state, ctx.cwd);
 			state.later = restoreLater(ctx);
-			state.cardShownThisTask = false;
+			state.cardsShownThisTask = 0;
 			state.pendingEcho = undefined;
 			state.echoVisible = false;
 			paintBadge(state, ctx);

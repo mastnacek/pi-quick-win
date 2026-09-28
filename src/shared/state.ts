@@ -4,8 +4,9 @@
  * or mocked registrations stay isolated (and tests need no reset hook).
  *
  * Two pieces of state carry real rules:
- * - `cardShownThisTask` enforces the PRD §10 hard limit: at most one card per
- *   task. It is re-armed by the next user prompt, not by a timer.
+ * - `cardsShownThisTask` counts the cards announced since the last user prompt,
+ *   compared against `config.cardLimit` (0 = unlimited). An all-day session must
+ *   be able to keep landing new increments, so the default is no cap at all.
  * - `pendingEcho` is the increment the user approved and that is still
  *   unverified. It exists so the closing echo can be *true*: no approval or no
  *   evidence, no echo (§3.3, §9.5).
@@ -34,8 +35,8 @@ export interface SelfQuickWinState {
 	globalFile: string;
 
 	// --- live session state ---
-	/** One card per task, re-armed on the next user prompt. */
-	cardShownThisTask: boolean;
+	/** Cards announced since the last user prompt; compared with config.cardLimit. */
+	cardsShownThisTask: number;
 	/** Approved increment awaiting verified delivery. */
 	pendingEcho: QuickWinCard | undefined;
 	/** Echo currently painted in the statusline; cleared on the next turn. */
@@ -45,6 +46,8 @@ export interface SelfQuickWinState {
 
 	// --- helpers ---
 	ifLive(cb: () => void): void;
+	/** True when this task has already spent its whole card budget. */
+	cardLimitReached(): boolean;
 }
 
 export function createQuickWinState(_pi: ExtensionAPI): SelfQuickWinState {
@@ -59,18 +62,23 @@ export function createQuickWinState(_pi: ExtensionAPI): SelfQuickWinState {
 			// Session closed or UI unavailable.
 		}
 	};
-
-	return {
+	const state: SelfQuickWinState = {
 		unsubscribers,
 		track,
 		config: { ...DEFAULT_CONFIG },
 		globalFile: GLOBAL_CONFIG_FILE,
-		cardShownThisTask: false,
+		cardsShownThisTask: 0,
 		pendingEcho: undefined,
 		echoVisible: false,
 		later: [],
 		ifLive,
+		cardLimitReached() {
+			// 0 is unlimited: a long session keeps announcing new increments, and
+			// the model — not a wall — decides what counts as a new one.
+			return state.config.cardLimit > 0 && state.cardsShownThisTask >= state.config.cardLimit;
+		},
 	};
+	return state;
 }
 
 /** Reload the cascading config for a session rooted at `cwd`. */

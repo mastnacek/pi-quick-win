@@ -27,7 +27,7 @@ function writeJson(path, value) {
 }
 
 /** Register the command with a sandboxed global scope and a recording dep set. */
-function setup({ config = { enabled: true, echo: true }, ctx: ctxOver = {}, globalFile } = {}) {
+function setup({ config = { enabled: true, echo: true, cardLimit: 0 }, ctx: ctxOver = {}, globalFile } = {}) {
   const pi = makePi();
   const state = makeState(globalFile ? { config, globalFile } : { config });
   const ctx = makeCtx(ctxOver);
@@ -98,12 +98,61 @@ test("--global only offers leaves it can actually carry", () => {
 
   assert.deepEqual(
     items.map((i) => i.value).sort(),
-    ["--global off", "--global on"],
+    ["--global limit ", "--global off", "--global on"],
     "info/later/clear are not settings and must not be offered under --global",
   );
   for (const item of items) {
-    assert.ok(/● AKTIVNÍ/.test(item.description) || /Unmute|Mute/.test(item.description));
+    assert.ok(/● AKTIVNÍ/.test(item.description) || /Unmute|Mute|Cards per task/.test(item.description));
   }
+});
+
+test("limit offers its own value level, marked with the value in effect", () => {
+  const { command } = setup({ config: { enabled: true, echo: true, cardLimit: 3 } });
+  const items = command.getArgumentCompletions("limit ") ?? [];
+
+  assert.deepEqual(
+    items.map((i) => i.value).sort(),
+    ["1", "10", "3", "unlimited"],
+  );
+  const active = items.find((i) => i.value === "3");
+  assert.match(active.label, /✓/, "the leaf in effect is marked in the label");
+  assert.match(active.description, /● AKTIVNÍ/);
+  assert.doesNotMatch(
+    items.find((i) => i.value === "unlimited").description,
+    /AKTIVNÍ/,
+    "exactly one leaf may claim to be active",
+  );
+});
+
+test("--global limit carries the value, not just the setting", () => {
+  const { command } = setup();
+  const items = command.getArgumentCompletions("--global limit ") ?? [];
+  assert.deepEqual(
+    items.map((i) => i.value).sort(),
+    ["--global limit 1", "--global limit 10", "--global limit 3", "--global limit unlimited"],
+  );
+});
+
+test("/quick-win limit persists only the changed key", () => {
+  const { cwd, globalFile } = sandbox();
+  writeJson(globalFile, { enabled: false, cardLimit: 1 });
+  const { command, state, ctx } = setup({ globalFile, ctx: { cwd } });
+
+  command.handler("limit unlimited", ctx);
+
+  assert.equal(state.config.cardLimit, 0);
+  assert.deepEqual(JSON.parse(readFileSync(projectConfigPath(cwd), "utf8")), { cardLimit: 0 });
+  const merged = loadConfig(cwd, globalFile);
+  assert.equal(merged.cardLimit, 0, "the project layer wins over the global value");
+  assert.equal(merged.enabled, false, "inherited keys must not be frozen into the project layer");
+});
+
+test("a junk card limit means no cap, never a silent plugin", () => {
+  const { cwd, globalFile } = sandbox();
+  writeJson(projectConfigPath(cwd), { cardLimit: "many" });
+  const merged = loadConfig(cwd, globalFile);
+  assert.equal(merged.cardLimit, 0, "unparsable means unlimited, not 1");
+  assert.equal(merged.enabled, true);
 });
 
 test("/quick-win off mutes and persists only the changed key", () => {
