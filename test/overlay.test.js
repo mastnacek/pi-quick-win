@@ -11,7 +11,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { presentCard } from "../src/slices/overlay/index.js";
+import { presentCard, measureCard, MIN_CARD_HEIGHT } from "../src/slices/overlay/index.js";
+import { CardView } from "../src/slices/overlay/card-view.js";
+import { stringsFor } from "../src/shared/i18n.js";
 import { validateCard } from "../src/shared/card.js";
 import { makeCtx, validCard } from "./fakes.js";
 
@@ -136,6 +138,37 @@ async function openCard(lang = "en", width = 72, theme = PLAIN_THEME) {
   return component;
 }
 
+/**
+ * A card with a height budget, the way the presenter builds it: measured first,
+ * then capped by the terminal. No ctx needed — the component is what matters here.
+ */
+
+function sized(card, terminalRows, lang = "en", theme = PLAIN_THEME) {
+  const natural = measureCard(card, stringsFor(lang), 72).total;
+  return new CardView(card, theme, () => "skip", {
+    locale: lang,
+    maxHeight: Math.max(MIN_CARD_HEIGHT, Math.min(natural, terminalRows)),
+  });
+}
+
+/** A card too tall for any reasonable terminal. */
+const TALL = validateCard(
+  validCard({
+    title: "A card with more text than a small terminal can show",
+    impact:
+      "The notification claims the user can no longer blame a stale build, and the header says which build drew the card, so the question is answerable in one glance instead of by arguing about git history for ten minutes.",
+    proof: "cd pi-quick-win && npm test green, and the rendered card fits the terminal without losing the menu",
+    steps: [
+      "Add a layout module that both measures and draws the card",
+      "Pass the measured height to the overlay instead of a fixed constant",
+      "Window the description and keep the decision block whole",
+      "Advertise the scroll keys in the footer only while they do something",
+      "Assert the menu is present at every terminal height",
+    ],
+    alternative: "A shorter card that asks for the same decision in one screen",
+  }),
+);
+
 test("escape closes without recording, and digits do nothing", async () => {
   assert.equal((await driveCard(["\u001b"])).result, "skip", "escape is the honest 'not now'");
 
@@ -241,4 +274,54 @@ test("the effort moves into the body when the header has no room for it", async 
   const lines = component.render(30);
   assert.doesNotMatch(lines[0], /⏱/, "a narrow header drops the badge");
   assert.match(lines.join("\n"), /⏱ Effort/, "the effort is still on the card");
+});
+
+test("the menu is never clipped, whatever the terminal height", () => {
+  for (const rows of [12, 14, 18, 24, 40, 200]) {
+    const view = sized(TALL, rows);
+    const lines = view.render(72);
+    const body = lines.join("\n");
+
+    assert.ok(lines.length <= Math.max(rows, MIN_CARD_HEIGHT), `the card must fit ${rows} rows`);
+    assert.match(body, /▸ .*deliver now/, "the selected choice is on screen");
+    assert.match(body, /later/, "the second choice is on screen");
+    assert.match(body, /skip/, "the third choice is on screen");
+    assert.match(body, /↑↓ move/, "the key hints are on screen");
+  }
+});
+
+test("a short card is measured, not padded to the terminal", () => {
+  const natural = measureCard(CARD, stringsFor("en"), 72).total;
+  const lines = sized(CARD, 200).render(72);
+  assert.equal(lines.length, natural, "the window is exactly the content when it fits");
+});
+
+test("PgUp/PgDn scroll the description and never the menu", () => {
+  const view = sized(TALL, 16);
+  const before = view.render(72).join("\n");
+  assert.match(before, /PgUp\/PgDn scroll/, "the footer offers scrolling only while it does something");
+
+  view.handleInput("[6~"); // page down
+  const after = view.render(72).join("\n");
+  assert.notEqual(after, before, "the description moved");
+  assert.match(after, /▸ .*deliver now/, "the menu survived the scroll");
+  assert.match(after, /↑ \d+/, "the hint says there is more above");
+
+  view.handleInput("[6~");
+  const further = view.render(72).join("\n");
+  assert.notEqual(further, after, "scrolling continues until the end");
+  assert.match(further, /↑↓ move/, "the key hints are still there after scrolling");
+});
+
+test("scrolling a long card does not change what Enter confirms", () => {
+  let picked = null;
+  const natural = measureCard(TALL, stringsFor("en"), 72).total;
+  const view = new CardView(TALL, PLAIN_THEME, (choice) => {
+    picked = choice;
+  }, { locale: "en", maxHeight: Math.min(natural, 16) });
+
+  view.handleInput("[6~");
+  view.handleInput("[6~");
+  view.handleInput("\r");
+  assert.equal(picked, "deliver_now", "the selection never moved while reading the proof");
 });

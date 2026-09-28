@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0 — 2026-09-28
+
+**Fixed**
+- The option menu is never clipped again. The overlay was a fixed `maxHeight: 24`, so any card with four steps lost two of its three options and the key hints below the fold — the screenshot that prompted this. The window is now sized from the card itself: the presenter measures the exact line count with the same layout function the view draws, clamps it to the terminal, and a card that still does not fit scrolls its description.
+- The decision block (rule, three choices, rule, key hints) is a fixed six rows that is never scrolled and never truncated. The head — title, impact, proof, steps, alternative — is what gets the window, and a scroll hint (`↑ 3 · ↓ 5 · PgUp/PgDn`) appears only while something is hidden.
+
+**Changed**
+- `PgUp`/`PgDn` scroll the description and never touch the selection: reading the proof cannot change what Enter confirms. The keys are advertised in the footer only while the card actually overflows, and the hint word is localized (`rolovat`).
+- `CardView` split: `layout.ts` owns the geometry (one entry per row, flattened so a count of entries is a count of rows), `card-view.ts` owns state, frame and keys. A wrapped field being one entry but five rows was the reason a measured height under-counted and the menu fell off the bottom.
+- Overlay width is `min(72, terminal columns)` instead of a constant, and the height floor is 12 rows.
+
+**Added**
+- 4 tests (69 total): the menu is on screen at 12/14/18/24/40/200 terminal rows, a short card is measured rather than padded, PgUp/PgDn move the description and leave the menu alone, and scrolling cannot change what Enter confirms.
+
+
 ## 0.4.1 — 2026-09-28
 
 **Changed**

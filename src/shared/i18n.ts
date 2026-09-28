@@ -34,7 +34,7 @@ export interface CardStrings {
 	effort: string;
 	/** Aligned with CHOICES by index — a missing entry would mislabel a button. */
 	choices: readonly ChoiceCopy[];
-	footer: { move: string; pick: string; confirm: string; skip: string };
+	footer: { move: string; pick: string; confirm: string; skip: string; scroll: string };
 	/** Display units for the effort badge; the enum itself never changes. */
 	effortUnits: Record<QuickWinEffort, string>;
 }
@@ -52,7 +52,7 @@ const STRINGS: Record<Locale, CardStrings> = {
 			{ label: "later", hint: "keep it for a later session" },
 			{ label: "skip", hint: "not now — nothing is recorded" },
 		],
-		footer: { move: "move", pick: "pick", confirm: "confirm", skip: "close" },
+		footer: { move: "move", pick: "pick", confirm: "confirm", skip: "close", scroll: "scroll" },
 		effortUnits: { minutes: "minutes", hour: "hour", hours: "hours", day: "day" },
 	},
 	cs: {
@@ -67,7 +67,7 @@ const STRINGS: Record<Locale, CardStrings> = {
 			{ label: "později", hint: "nechat na pozdější relaci" },
 			{ label: "přeskočit", hint: "teď ne — neuloží se nic" },
 		],
-		footer: { move: "pohyb", pick: "vybrat", confirm: "potvrdit", skip: "zavřít" },
+		footer: { move: "pohyb", pick: "vybrat", confirm: "potvrdit", skip: "zavřít", scroll: "rolovat" },
 		effortUnits: { minutes: "minuty", hour: "hodina", hours: "hodiny", day: "den" },
 	},
 };
