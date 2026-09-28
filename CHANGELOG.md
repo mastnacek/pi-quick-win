@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0 — 2026-09-28
+
+**Changed**
+- **The card is a menu again.** The `1 2 3` prefixes and the `1-3 pick` footer hint are gone: they were a hidden digit
+  shortcut that read as a numbered list. The card now answers only to what it advertises — `↑↓` to move, `⏎`/Enter to
+  confirm, `esc` to close. The `1`/`2`/`3`, `q`, `j` and `k` key handlers are removed, so no behaviour is hidden
+  behind a key the card never shows.
+- The choice hints and the footer word for `esc` are now truthful: with no card cap, `skip` records nothing rather
+  than "stop asking in this task".
+- **Czech UI vocabulary** (`/quick-win lang cs`): the three choices, the field labels, the effort unit and the footer
+  render in Czech, so the plugin's own UI and the translated card body speak the same language. English stays the
+  default, and the model-facing tool result stays English in every locale — the agent keeps working in English.
+
+**Added**
+- `src/shared/i18n.ts`: `Locale`, an `en`/`cs` string table, `stringsFor()`, `normalizeLocale()`.
+- `lang` in the config cascade, `/quick-win lang <cs|en> [--global]` with a two-level completion menu marking the
+  value in effect. An unknown locale is a typo: it is refused with a usage line, never written to disk; an
+  unparsable value in a config file falls back to English.
+- 5 new tests (63 total): the menu ignores digits, the Czech render, the unknown-locale fallback, the `lang`
+  completion level, and the partial-key persistence path.
+
 ## 0.3.0 — 2026-09-28
 
 **Changed**

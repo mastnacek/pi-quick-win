@@ -39,9 +39,13 @@ pi install git:github.com/mastnacek/pi-quick-win
 | --- | --- |
 | `deliver now` | The agent implements exactly that increment and must not widen the scope. |
 | `later` | Recorded in the session; visible as a statusline count and via `/quick-win later`. |
-| `skip` | Nothing recorded, no echo, no further cards in this task. |
+| `skip` | Nothing recorded, no echo, the card simply closes. |
 
-Keys: `↑`/`↓` or `j`/`k` select, `1`-`3` or `enter` confirm, `esc` or `q` means skip.
+Keys: `↑`/`↓` select, `enter` confirms, `esc` closes. Those are the only keys the card answers to — a shortcut it
+does not show is a hidden affordance, which is why the `1`-`3` rows of earlier versions are gone.
+
+With `/quick-win lang cs` the whole card UI — the three choices, the field labels, the effort unit and the footer —
+renders in Czech. The model-facing tool result stays English in every locale.
 
 ## Commands
 
@@ -53,6 +57,7 @@ Keys: `↑`/`↓` or `j`/`k` select, `1`-`3` or `enter` confirm, `esc` or `q` me
 | `/quick-win off` / `on` | Mute / unmute. |
 | `/quick-win off --global` | Same, persisted for all sessions instead of this project. |
 | `/quick-win limit <n\|unlimited>` | Cards allowed per task. `unlimited` (the default) is `0`; a new prompt resets the counter. |
+| `/quick-win lang <cs\|en>` | Language of the card UI (choices, field labels, footer). English by default. |
 
 ## Configuration
 

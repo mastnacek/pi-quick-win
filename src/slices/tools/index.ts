@@ -23,10 +23,11 @@ import {
 import { EFFORTS } from "../../shared/card.js";
 import { paintBadge, paintEcho } from "../../shared/status.js";
 import type { SelfQuickWinState } from "../../shared/state.js";
+import type { Locale } from "../../shared/i18n.js";
 
 /** Operations the tools need, supplied by the composition root. */
 export interface ToolDeps {
-	presentCard(ctx: ExtensionContext, card: QuickWinCard): Promise<QuickWinChoice | null>;
+	presentCard(ctx: ExtensionContext, card: QuickWinCard, lang: Locale): Promise<QuickWinChoice | null>;
 	recordLater(pi: ExtensionAPI, state: SelfQuickWinState, card: QuickWinCard): number;
 }
 
@@ -108,7 +109,7 @@ function registerQuickWin(pi: ExtensionAPI, state: SelfQuickWinState, deps: Tool
 				};
 			}
 
-			const chosen = await deps.presentCard(ctx, card);
+			const chosen = await deps.presentCard(ctx, card, state.config.lang);
 			// null = no interactive surface (json/print/rpc). Deliver without asking.
 			const choice: QuickWinChoice = chosen ?? "deliver_now";
 

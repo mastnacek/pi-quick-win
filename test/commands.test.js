@@ -98,12 +98,47 @@ test("--global only offers leaves it can actually carry", () => {
 
   assert.deepEqual(
     items.map((i) => i.value).sort(),
-    ["--global limit ", "--global off", "--global on"],
+    ["--global lang ", "--global limit ", "--global off", "--global on"],
     "info/later/clear are not settings and must not be offered under --global",
   );
   for (const item of items) {
-    assert.ok(/● AKTIVNÍ/.test(item.description) || /Unmute|Mute|Cards per task/.test(item.description));
+    assert.ok(/● AKTIVNÍ/.test(item.description) || /Unmute|Mute|Cards per task|Language/.test(item.description));
   }
+});
+
+test("lang offers the supported locales and marks the value in effect", () => {
+  const { command } = setup({ config: { enabled: true, echo: true, cardLimit: 0, lang: "cs" } });
+  const items = command.getArgumentCompletions("lang ") ?? [];
+
+  assert.deepEqual(items.map((i) => i.value), ["en", "cs"]);
+  assert.match(items.find((i) => i.value === "cs").label, /✓/);
+  assert.match(items.find((i) => i.value === "cs").description, /AKTIVNÍ/);
+  assert.doesNotMatch(items.find((i) => i.value === "en").description, /AKTIVNÍ/);
+});
+
+test("/quick-win lang cs persists only the changed key and survives a reload", () => {
+  const { cwd, globalFile } = sandbox();
+  writeJson(globalFile, { enabled: true, cardLimit: 2 });
+  const { command, state, ctx } = setup({ globalFile, ctx: { cwd } });
+
+  command.handler("lang cs", ctx);
+
+  assert.equal(state.config.lang, "cs");
+  assert.deepEqual(JSON.parse(readFileSync(projectConfigPath(cwd), "utf8")), { lang: "cs" });
+  const merged = loadConfig(cwd, globalFile);
+  assert.equal(merged.lang, "cs");
+  assert.equal(merged.cardLimit, 2, "inherited keys must not be frozen into the project layer");
+});
+
+test("a junk language is a typo, not a silent reset", () => {
+  const { cwd, globalFile } = sandbox();
+  const { command, state, ctx } = setup({ globalFile, ctx: { cwd } });
+  state.config = { ...state.config, lang: "cs" };
+
+  command.handler("lang klingon", ctx);
+
+  assert.equal(state.config.lang, "cs", "an unknown locale must not change anything");
+  assert.equal(existsSync(projectConfigPath(cwd)), false, "and must not be written to disk");
 });
 
 test("limit offers its own value level, marked with the value in effect", () => {

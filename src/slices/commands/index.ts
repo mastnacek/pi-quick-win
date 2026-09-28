@@ -9,6 +9,12 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import { saveConfig } from "../../shared/config.js";
 import { paintBadge } from "../../shared/status.js";
 import type { SelfQuickWinState } from "../../shared/state.js";
+import { LOCALES, normalizeLocale, type Locale } from "../../shared/i18n.js";
+
+/** True only for an explicit, supported locale token. */
+function isLocale(raw: string): boolean {
+	return (LOCALES as readonly string[]).includes(raw.trim().toLowerCase());
+}
 
 /** Operations the command needs, supplied by the composition root. */
 export interface CommandDeps {
@@ -60,26 +66,46 @@ function limitRows(limit: number): Row[] {
 	});
 }
 
+/** The language leaves, with the value currently in effect marked. */
+function langRows(lang: Locale): Row[] {
+	return LOCALES.map((locale) => ({
+		label: lang === locale ? `${locale} ✓` : locale,
+		value: locale,
+		description: `Card UI in ${locale === "cs" ? "Czech" : "English"}${lang === locale ? " · ● AKTIVNÍ" : ""}`,
+	}));
+}
+
 /**
  * Setting catalogue, read live so the menu never shows a stale snapshot.
- * `off`/`on`/`limit` are settings; `info`/`later`/`clear` are actions and carry no state.
+ * `off`/`on`/`limit`/`lang` are settings; `info`/`later`/`clear` are actions and carry no state.
  */
-function catalogue(enabled: boolean, limit: number): readonly Row[] {
+function catalogue(enabled: boolean, limit: number, lang: Locale): readonly Row[] {
 	return [
 		{ label: "info", value: "info", description: "Show state and the deferred count" },
 		{ label: "later", value: "later", description: "List deferred quick wins" },
 		{ label: "clear", value: "clear", description: "Empty the deferred list" },
 		...toggleRows(enabled),
-		// Non-terminal: `limit` takes a value, so it keeps the trailing space.
+		// Non-terminal: `limit` and `lang` take a value, so they keep the trailing space.
 		{ label: "limit", value: "limit ", description: `Cards per task [● ${limit === 0 ? "unlimited" : limit}]` },
+		{ label: "lang", value: "lang ", description: `Language of the card UI [● ${lang}]` },
 		GLOBAL_ROW,
 	];
 }
 
-const SETTING_SUBS = new Set(["off", "on", "limit", "unlimited", "1", "3", "10"]);
+const SETTING_SUBS = new Set([
+	"off",
+	"on",
+	"limit",
+	"unlimited",
+	"1",
+	"3",
+	"10",
+	"lang",
+	...LOCALES,
+]);
 
-/** `limit` followed by whitespace: the argument has reached the value level. */
-const LIMIT_VALUE_LEVEL = /^limit\s+/i;
+/** `limit` or `lang` followed by whitespace: the argument reached the value level. */
+const VALUE_LEVEL = /^(?:limit|lang)\s+/i;
 
 /** First whitespace-delimited token of the typed prefix. */
 function firstToken(text: string): string {
@@ -94,19 +120,21 @@ function bare(label: string): string {
 }
 
 /** Completion rows for everything after `/quick-win `. */
-function completions(prefix: string, enabled: boolean, limit: number): Row[] | null {
-	const rows = catalogue(enabled, limit);
+function completions(prefix: string, enabled: boolean, limit: number, lang: Locale): Row[] | null {
+	const rows = catalogue(enabled, limit, lang);
 	const trimmed = prefix.trimStart();
 	const afterGlobal = trimmed.startsWith("--global") ? trimmed.slice(8).trimStart() : null;
 
 	const clean = (text: string, global: boolean): Row[] | null => {
 		const head = firstToken(text).toLowerCase();
-		// `limit ` opens a second level: the leaves, narrowed by whatever follows.
-		if (LIMIT_VALUE_LEVEL.test(text)) {
-			const typed = text.replace(LIMIT_VALUE_LEVEL, "").trim().toLowerCase();
-			const leaves = limitRows(limit).filter((row) => startsWith(row.label, typed));
+		// `limit ` / `lang ` open a second level: the leaves, narrowed by the rest.
+		if (VALUE_LEVEL.test(text)) {
+			const typed = text.replace(VALUE_LEVEL, "").trim().toLowerCase();
+			const leaves = (head === "lang" ? langRows(lang) : limitRows(limit)).filter((row) =>
+				startsWith(row.label, typed),
+			);
 			return leaves.length > 0
-				? leaves.map((row) => (global ? { ...row, value: `--global limit ${row.value}` } : row))
+				? leaves.map((row) => (global ? { ...row, value: `--global ${head} ${row.value}` } : row))
 				: null;
 		}
 		const items = rows.filter((row) => row.label !== "--global" && startsWith(row.label, head));
@@ -120,8 +148,8 @@ function completions(prefix: string, enabled: boolean, limit: number): Row[] | n
 
 	if (afterGlobal === null) {
 		// Without `--global` the whole argument is a plain first-level prefix —
-		// except once it has reached the `limit` value level.
-		if (LIMIT_VALUE_LEVEL.test(trimmed)) return clean(trimmed, false);
+		// except once it has reached a value level.
+		if (VALUE_LEVEL.test(trimmed)) return clean(trimmed, false);
 		const items = rows.filter((row) => startsWith(row.label, trimmed.toLowerCase()));
 		return items.length > 0 ? [...items] : null;
 	}
@@ -161,6 +189,7 @@ function describeInfo(state: SelfQuickWinState, ctx: ExtensionCommandContext): s
 		`quick-win: ${state.config.enabled ? "enabled" : "muted"}\n` +
 		`closing echo: ${state.config.echo ? "on" : "off"}\n` +
 		`card limit per task: ${limit === 0 ? "unlimited" : limit}\n` +
+		`card UI language: ${state.config.lang}\n` +
 		`deferred: ${state.later.length}\n` +
 		`cards in this task: ${state.cardsShownThisTask}\n` +
 		"scope: `--global` writes ~/.pi/agent/, otherwise <cwd>/.pi/."
@@ -187,7 +216,7 @@ export function registerQuickWinCommand(
 			"Quick-win controls (/quick-win [info|later|clear|on|off|limit <n|unlimited>] [--global])",
 		// Live state at completion time, never a snapshot from registration.
 		getArgumentCompletions: (prefix) =>
-			completions(prefix, state.config.enabled, state.config.cardLimit),
+			completions(prefix, state.config.enabled, state.config.cardLimit, state.config.lang),
 
 		handler: async (args, ctx) => {
 			// `--global` targets ~/.pi/agent/, its absence targets <cwd>/.pi/.
@@ -218,6 +247,30 @@ export function registerQuickWinCommand(
 				if (ctx.hasUI) {
 					ctx.ui.notify(
 						`Card limit per task: ${limit === 0 ? "unlimited" : limit}${isGlobal ? " (global)" : " (project)"}`,
+						"info",
+					);
+				}
+				return;
+			}
+
+			if (sub === "lang") {
+				const locale = normalizeLocale(tokens[1]);
+				// Only an explicit, recognised token may change it; a typo must not
+				// silently reset the UI to English.
+				if (tokens[1] === undefined || !isLocale(tokens[1])) {
+					if (ctx.hasUI) {
+						ctx.ui.notify(
+							"Usage: /quick-win lang <cs|en> [--global]",
+							"warning",
+						);
+					}
+					return;
+				}
+				saveConfig({ lang: locale }, isGlobal, ctx.cwd, state.globalFile);
+				state.config = { ...state.config, lang: locale };
+				if (ctx.hasUI) {
+					ctx.ui.notify(
+						`Card UI language: ${locale}${isGlobal ? " (global)" : " (project)"}`,
 						"info",
 					);
 				}

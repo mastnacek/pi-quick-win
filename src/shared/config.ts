@@ -10,6 +10,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { normalizeLocale, type Locale } from "./i18n.js";
 
 export interface QuickWinConfig {
 	/** Master switch. Off means the tool answers, but the plugin shows nothing. */
@@ -23,12 +24,19 @@ export interface QuickWinConfig {
 	 * where one card per task is the whole point.
 	 */
 	cardLimit: number;
+	/**
+	 * Language of the card's own UI vocabulary (choices, field labels, footer).
+	 * The card body stays model-authored English; the model-facing tool result is
+	 * English in every locale.
+	 */
+	lang: Locale;
 }
 
 export const DEFAULT_CONFIG: QuickWinConfig = {
 	enabled: true,
 	echo: true,
 	cardLimit: 0,
+	lang: "en",
 };
 
 const CONFIG_DIR = join(homedir(), ".pi", "agent");
@@ -65,6 +73,8 @@ export function normalizeConfig(cfg: Partial<QuickWinConfig>): QuickWinConfig {
 		// Anything unparsable, negative or fractional means "no cap", never 1:
 		// a broken config must not silence the plugin.
 		cardLimit: Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 0,
+		// An unknown language is a typo, not a reason to fall back to silence: English.
+		lang: normalizeLocale(cfg.lang),
 	};
 }
 

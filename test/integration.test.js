@@ -42,8 +42,11 @@ function autoChoiceCtx(pi, choice, over = {}) {
             undefined,
             resolve,
           );
-          // A user picking a row: drive the real key handler, no shortcuts.
-          component.handleInput(["1", "2", "3"][["deliver_now", "later", "skip"].indexOf(choice)]);
+          // A user picking a row: drive the real key handler the way a human
+          // does — arrow down to the row, then Enter. No digit shortcuts exist.
+          const steps = ["deliver_now", "later", "skip"].indexOf(choice);
+          for (let i = 0; i < steps; i += 1) component.handleInput("\u001b[B");
+          component.handleInput("\r");
         });
       },
     },

@@ -19,26 +19,32 @@ import type { Component } from "@earendil-works/pi-tui";
 import { matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { CHOICES, type QuickWinCard, type QuickWinChoice } from "../../shared/card.js";
+import { DEFAULT_LOCALE, stringsFor, type CardStrings, type Locale } from "../../shared/i18n.js";
 
-/** Short labels for the three choices, in CHOICES order. */
-const LABELS: ReadonlyArray<{ icon: string; label: string; hint: string }> = [
-	{ icon: "🚀", label: "deliver now", hint: "implement exactly this increment" },
-	{ icon: "📅", label: "later", hint: "keep it for a later session" },
-	{ icon: "⏭", label: "skip", hint: "not today, stop asking in this task" },
-];
+/** One choice row: the emoji is language-neutral, the words are not. */
+const ICONS: readonly string[] = ["🚀", "📅", "⏭"];
+
+/** Icons for the field column, one per FIELDS entry. */
+const FIELD_ICONS = {
+	impact: "🎯",
+	proof: "✅",
+	steps: "📋",
+	alternative: "🔀",
+	effort: "⏱",
+} as const;
+
+/** Key glyphs for the footer; the words behind them come from the string table. */
 
 /** One field column: emoji + name, each in its own color so the eye can skim. */
 const FIELDS = {
-	impact: { icon: "🎯", label: "Impact", color: "accent" },
-	proof: { icon: "✅", label: "Proof", color: "success" },
-	steps: { icon: "📋", label: "Steps", color: "borderAccent" },
-	alternative: { icon: "🔀", label: "Other cut", color: "warning" },
-	effort: { icon: "⏱", label: "Effort", color: "warning" },
-} as const satisfies Record<string, { icon: string; label: string; color: ThemeColor }>;
+	impact: { color: "accent" },
+	proof: { color: "success" },
+	steps: { color: "borderAccent" },
+	alternative: { color: "warning" },
+	effort: { color: "warning" },
+} as const satisfies Record<string, { color: ThemeColor }>;
 
-/** Visible width of the field column, so values line up like a table. */
-const LABEL_COL =
-	Math.max(...Object.values(FIELDS).map((f) => visibleWidth(`${f.icon} ${f.label}`))) + 1;
+/** Field-label column width, recomputed per locale so the table stays aligned. */
 
 /** A body line, optionally painted as the highlighted choice row. */
 interface BodyLine {
@@ -53,14 +59,36 @@ export class CardView implements Component {
 		private readonly card: QuickWinCard,
 		private readonly theme: Theme,
 		private readonly done: (choice: QuickWinChoice) => void,
-	) {}
+		private readonly locale: Locale = DEFAULT_LOCALE,
+	) {
+		this.strings = stringsFor(locale);
+	}
+
+	private readonly strings: CardStrings;
+
+	/** Visible width of the widest field head, so every value starts in one column. */
+	private get labelCol(): number {
+		const s = this.strings;
+		return (
+			Math.max(
+				visibleWidth(`${FIELD_ICONS.impact} ${s.impact}`),
+				visibleWidth(`${FIELD_ICONS.proof} ${s.proof}`),
+				visibleWidth(`${FIELD_ICONS.steps} ${s.steps}`),
+				visibleWidth(`${FIELD_ICONS.alternative} ${s.alternative}`),
+				visibleWidth(`${FIELD_ICONS.effort} ${s.effort}`),
+			) + 1
+		);
+	}
 
 	invalidate(): void {
 		// Stateless rendering: nothing is cached, so nothing to drop.
 	}
 
 	handleInput(data: string): void {
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c") || data === "q") {
+		// Only the keys the footer advertises. A shortcut the card does not show
+		// is a hidden affordance, and digits in front of the rows made the menu
+		// look like a numbered list instead of a menu.
+		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
 			this.done("skip");
 			return;
 		}
@@ -68,16 +96,11 @@ export class CardView implements Component {
 			this.choose(this.index + 1);
 			return;
 		}
-		const digit = Number.parseInt(data, 10);
-		if (Number.isInteger(digit) && digit >= 1 && digit <= CHOICES.length) {
-			this.choose(digit);
-			return;
-		}
-		if (matchesKey(data, "up") || data === "k") {
+		if (matchesKey(data, "up")) {
 			this.index = (this.index + CHOICES.length - 1) % CHOICES.length;
 			return;
 		}
-		if (matchesKey(data, "down") || data === "j") {
+		if (matchesKey(data, "down")) {
 			this.index = (this.index + 1) % CHOICES.length;
 		}
 	}
@@ -90,8 +113,9 @@ export class CardView implements Component {
 
 	render(width: number): string[] {
 		const th = this.theme;
+		const s = this.strings;
 		const body: BodyLine[] = [];
-		const badge = `⏱ ${this.card.effort}`;
+		const badge = `⏱ ${s.effortUnits[this.card.effort]}`;
 		// The effort rides in the header when there is room for it; on a narrow
 		// terminal it drops into the field column instead of disappearing.
 		const badgeInHeader = width - 2 >= visibleWidth(badge) + 24;
@@ -99,22 +123,24 @@ export class CardView implements Component {
 		body.push({ text: th.bold(th.fg("accent", this.card.title)) });
 		body.push({ text: "" });
 		if (!badgeInHeader) {
-			body.push({ text: this.field(FIELDS.effort, this.card.effort, width) });
+			body.push({ text: this.field("effort", badge, width) });
 		}
-		body.push({ text: this.field(FIELDS.impact, this.card.impact, width) });
-		body.push({ text: this.field(FIELDS.proof, this.card.proof, width) });
+		body.push({ text: this.field("impact", this.card.impact, width) });
+		body.push({ text: this.field("proof", this.card.proof, width) });
 		body.push({ text: "" });
-		body.push({ text: th.bold(th.fg(FIELDS.steps.color, `${FIELDS.steps.icon} ${FIELDS.steps.label}`)) });
+		body.push({
+			text: th.bold(th.fg(FIELDS.steps.color, `${FIELD_ICONS.steps} ${s.steps}`)),
+		});
 		this.card.steps.forEach((step, i) => {
 			body.push({ text: this.step(step, i + 1, width) });
 		});
 		if (this.card.alternative) {
 			body.push({ text: "" });
-			body.push({ text: this.field(FIELDS.alternative, this.card.alternative, width) });
+			body.push({ text: this.field("alternative", this.card.alternative, width) });
 		}
 
 		body.push({ text: this.rule(width) });
-		LABELS.forEach((choice, i) => {
+		s.choices.forEach((choice, i) => {
 			body.push({ text: this.choice(choice, i), highlight: i === this.index });
 		});
 		body.push({ text: this.rule(width) });
@@ -125,18 +151,28 @@ export class CardView implements Component {
 
 	/** A labelled, width-wrapped field. Returns lines joined by \n. */
 	private field(
-		field: { icon: string; label: string; color: ThemeColor },
+		which: keyof typeof FIELDS,
 		value: string,
 		width: number,
 	): string {
-		const head = this.theme.bold(this.theme.fg(field.color, `${field.icon} ${field.label}`));
-		return this.wrap(head, value, width, LABEL_COL);
+		const label =
+			which === "impact"
+				? this.strings.impact
+				: which === "proof"
+					? this.strings.proof
+					: which === "alternative"
+						? this.strings.alternative
+						: this.strings.effort;
+		const head = this.theme.bold(
+			this.theme.fg(FIELDS[which].color, `${FIELD_ICONS[which]} ${label}`),
+		);
+		return this.wrap(head, value, width, this.labelCol);
 	}
 
 	/** A numbered step, wrapped under itself rather than under the number. */
 	private step(text: string, oneBased: number, width: number): string {
 		const number = this.theme.fg("accent", `${oneBased}.`);
-		return this.wrap(`  ${number}`, text, width, LABEL_COL);
+		return this.wrap(`  ${number}`, text, width, this.labelCol);
 	}
 
 	/**
@@ -152,18 +188,14 @@ export class CardView implements Component {
 			.join("\n");
 	}
 
-	/** One choice row; the selected one carries the cursor, the key and the label. */
-	private choice(
-		choice: { icon: string; label: string; hint: string },
-		index: number,
-	): string {
+	/** One choice row; the selected one carries the cursor and the bold label. */
+	private choice(choice: { label: string; hint: string }, index: number): string {
 		const th = this.theme;
+		const icon = `${ICONS[index] ?? ""} `;
 		if (index !== this.index) {
-			return `  ${th.fg("dim", `${index + 1}  ${choice.icon} ${choice.label}`)}   ${th.fg("dim", choice.hint)}`;
+			return `  ${th.fg("dim", `${icon}${choice.label}`)}   ${th.fg("dim", choice.hint)}`;
 		}
-		const cursor = th.bold(th.fg("accent", "▸"));
-		const key = th.bold(th.fg("accent", `${index + 1}`));
-		return `${cursor} ${key}  ${choice.icon} ${th.bold(choice.label)}   ${th.fg("dim", choice.hint)}`;
+		return `${th.bold(th.fg("accent", "▸"))} ${th.bold(`${icon}${choice.label}`)}   ${th.fg("dim", choice.hint)}`;
 	}
 
 	/** A full-width dim rule, used instead of an empty line to group the card.
@@ -175,9 +207,10 @@ export class CardView implements Component {
 	/** Key hints with colored glyphs, so the keyboard story is readable at a glance. */
 	private footer(): string {
 		const th = this.theme;
+		const f = this.strings.footer;
 		const key = (glyph: string, text: string) =>
 			`${th.bold(th.fg("accent", glyph))} ${th.fg("dim", text)}`;
-		return [key("↑↓", "move"), key("1-3", "pick"), key("⏎", "confirm"), key("esc", "skip")].join(
+		return [key("↑↓", f.move), key("⏎", f.confirm), key("esc", f.skip)].join(
 			` ${th.fg("border", "·")} `,
 		);
 	}
@@ -205,7 +238,7 @@ export class CardView implements Component {
 	/** Top border: accent title, dim rule, effort badge, closing corner. */
 	private header(inner: number, badge?: string): string {
 		const th = this.theme;
-		const title = th.bold(th.fg("accent", " ⚡ QUICK WIN "));
+		const title = th.bold(th.fg("accent", ` ⚡ ${this.strings.title} `));
 		const badgeText = badge ? th.fg("warning", ` ${badge} `) : "";
 		const fill = Math.max(0, inner - visibleWidth(title) - visibleWidth(badgeText));
 		return `${th.fg("borderAccent", "╭")}${title}${th.fg("border", "─".repeat(fill))}${badgeText}${th.fg("borderAccent", "╮")}`;

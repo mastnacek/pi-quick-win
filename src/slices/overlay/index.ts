@@ -10,6 +10,7 @@
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { QuickWinCard, QuickWinChoice } from "../../shared/card.js";
+import { DEFAULT_LOCALE, type Locale } from "../../shared/i18n.js";
 import { CardView } from "./card-view.js";
 
 /** Card width in columns; the overlay is centred and clamped by the engine. */
@@ -18,12 +19,13 @@ const CARD_WIDTH = 72;
 export async function presentCard(
 	ctx: ExtensionContext,
 	card: QuickWinCard,
+	lang: Locale = DEFAULT_LOCALE,
 ): Promise<QuickWinChoice | null> {
 	if (ctx.mode !== "tui" || !ctx.hasUI) return null;
 
 	try {
 		return await ctx.ui.custom<QuickWinChoice>(
-			(_tui, theme, _keybindings, done) => new CardView(card, theme, done),
+			(_tui, theme, _keybindings, done) => new CardView(card, theme, done, lang),
 			{ overlay: true, overlayOptions: { anchor: "center", width: CARD_WIDTH, maxHeight: 24 } },
 		);
 	} catch {
