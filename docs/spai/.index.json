@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-09-28 15:17:23",
+  "lastUpdated": "2026-09-28 16:53:49",
   "records": [
     {
       "id": "SPAI-001",
@@ -16,6 +16,21 @@
       "project": "pi-quick-win",
       "projectPath": "D:/01_programovani/pi/plugins/pi-quick-win",
       "file": "2026-09-28-SPAI-001-one-card-per-task-zed-odstranen-jako-neprepisovate.md"
+    },
+    {
+      "id": "SPAI-002",
+      "title": "Čtvrtá volba \"delegovat\" u karty: vrátit modelu delegation brief a nechat ho volat nástroj subagent (ExtensionAPI nemá API pro spawn, takže plugin brief pouze sestaví a deleguje model) - brief potřebuje nová pole scope a constraints, proof jako \"Done when\", stav delegated/čeká na důkaz, protože subagent quick_win_done volat nemůže (recursion guard) - TAIL_LINES v layout.ts je natvrdo 6, musí se nejdřív odvodit z CHOICES.length, jinak se ořízne nový řádek - delegovat se vyplatí jen pro samostatný přírůstek běžící paralelně, ne pro 20minutovou práci ?",
+      "type": "Idea",
+      "status": "idea",
+      "symbol": "?",
+      "timestamp": "2026-09-28 16:53:49",
+      "tags": [
+        "delegace",
+        "ui"
+      ],
+      "project": "pi-quick-win",
+      "projectPath": "D:/01_programovani/pi/plugins/pi-quick-win",
+      "file": "2026-09-28-SPAI-002-ctvrta-volba-delegovat-u-karty-vratit-modelu-deleg.md"
     }
   ]
 }
