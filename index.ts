@@ -51,7 +51,7 @@ export default function quickWinExtension(pi: ExtensionAPI): void {
 	// The composition root is the only place allowed to cross a slice boundary.
 	registerQuickWinTools(pi, state, { presentCard, recordLater });
 	registerQuickWinCommand(pi, state, {
-		describeLater: (s) => describeLater(s.later),
+		describeLater: (items, strings) => describeLater(items, strings),
 		clearLater,
 	});
 

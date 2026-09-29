@@ -10,6 +10,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { QuickWinCard } from "../../shared/card.js";
+import type { CommandStrings } from "../../shared/i18n.js";
 import type { LaterItem, SelfQuickWinState } from "../../shared/state.js";
 
 export const LATER_ENTRY = "quick-win-later";
@@ -74,8 +75,8 @@ export function clearLater(pi: ExtensionAPI, state: SelfQuickWinState): void {
 	}
 }
 
-/** Compact list for `/quick-win later`. */
-export function describeLater(items: LaterItem[]): string {
-	if (items.length === 0) return "No deferred quick wins.";
-	return items.map((item, i) => `${i + 1}. ${item.title}`).join("\n");
+/** Compact list for `/quick-win later`; the wording comes from the locale table. */
+export function describeLater(items: LaterItem[], strings: CommandStrings): string {
+	if (items.length === 0) return strings.laterEmpty;
+	return items.map((item, i) => strings.laterItem(i + 1, item.title)).join("\n");
 }

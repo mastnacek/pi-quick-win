@@ -14,6 +14,7 @@ import {
   restoreLater,
 } from "../src/slices/later/index.js";
 import { makeCtx, makePi, makeState, validCard } from "./fakes.js";
+import { commandsFor } from "../src/shared/i18n.js";
 
 test("a deferred card is appended to the session, not held in memory alone", () => {
   const pi = makePi();
@@ -80,10 +81,16 @@ test("an unreadable session history degrades to an empty queue", () => {
 });
 
 test("the list is compact and speaks like a human", () => {
-  assert.equal(describeLater([]), "No deferred quick wins.");
-  const text = describeLater([
-    { title: "Parser first", proof: "tests", recordedAt: 0 },
-    { title: "Then the CLI", proof: "", recordedAt: 0 },
-  ]);
+  const en = commandsFor("en");
+  const cs = commandsFor("cs");
+  assert.equal(describeLater([], en), "No deferred quick wins.");
+  assert.equal(describeLater([], cs), "Žádné odložené quick winy.");
+  const text = describeLater(
+    [
+      { title: "Parser first", proof: "tests", recordedAt: 0 },
+      { title: "Then the CLI", proof: "", recordedAt: 0 },
+    ],
+    en,
+  );
   assert.equal(text, "1. Parser first\n2. Then the CLI");
 });

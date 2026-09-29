@@ -34,7 +34,10 @@ function setup({ config = { enabled: true, echo: true, cardLimit: 0 }, ctx: ctxO
   const cleared = [];
 
   registerQuickWinCommand(pi, state, {
-    describeLater: (s) => (s.later.length === 0 ? "No deferred quick wins." : `${s.later.length} deferred`),
+    describeLater: (items, strings) =>
+      items.length === 0
+        ? strings.laterEmpty
+        : items.map((it, i) => strings.laterItem(i + 1, it.title)).join("\n"),
     clearLater: () => cleared.push(true),
   });
 
@@ -60,14 +63,14 @@ test("the settings menu marks the value in effect, live", () => {
 
   assert.ok(enabledRows.has("on ✓"), "the active toggle carries the marker in its label");
   assert.ok(enabledRows.has("off"), "the inactive toggle carries no marker");
-  assert.match(enabledRows.get("on ✓").description, /● AKTIVNÍ/);
-  assert.ok(!/AKTIVNÍ/.test(enabledRows.get("off").description));
+  assert.match(enabledRows.get("on ✓").description, /● ACTIVE/);
+  assert.ok(!/ACTIVE/.test(enabledRows.get("off").description));
   assert.equal(enabledRows.get("on ✓").value, "on", "the marker must never enter `value`");
 
   const muted = setup({ config: { enabled: false, echo: true } });
   const mutedRows = new Map((muted.command.getArgumentCompletions("") ?? []).map((i) => [i.label, i]));
   assert.ok(mutedRows.has("off ✓"), "after muting, the marker moves to off");
-  assert.match(mutedRows.get("off ✓").description, /● AKTIVNÍ/);
+  assert.match(mutedRows.get("off ✓").description, /● ACTIVE/);
 });
 
 test("the menu reads live state, not a snapshot taken at registration", () => {
@@ -102,7 +105,7 @@ test("--global only offers leaves it can actually carry", () => {
     "info/later/clear are not settings and must not be offered under --global",
   );
   for (const item of items) {
-    assert.ok(/● AKTIVNÍ/.test(item.description) || /Unmute|Mute|Cards per task|Language/.test(item.description));
+    assert.ok(/● ACTIVE/.test(item.description) || /Unmute|Mute|Cards per task|Language/.test(item.description));
   }
 });
 
@@ -110,10 +113,10 @@ test("lang offers the supported locales and marks the value in effect", () => {
   const { command } = setup({ config: { enabled: true, echo: true, cardLimit: 0, lang: "cs" } });
   const items = command.getArgumentCompletions("lang ") ?? [];
 
-  assert.deepEqual(items.map((i) => i.value), ["en", "cs"]);
-  assert.match(items.find((i) => i.value === "cs").label, /✓/);
-  assert.match(items.find((i) => i.value === "cs").description, /AKTIVNÍ/);
-  assert.doesNotMatch(items.find((i) => i.value === "en").description, /AKTIVNÍ/);
+  assert.deepEqual(items.map((i) => i.value), ["lang en", "lang cs"]);
+  assert.match(items.find((i) => i.value === "lang cs").label, /✓/);
+  assert.match(items.find((i) => i.value === "lang cs").description, /AKTIVNÍ/);
+  assert.doesNotMatch(items.find((i) => i.value === "lang en").description, /AKTIVNÍ/);
 });
 
 test("/quick-win lang cs persists only the changed key and survives a reload", () => {
@@ -147,14 +150,14 @@ test("limit offers its own value level, marked with the value in effect", () => 
 
   assert.deepEqual(
     items.map((i) => i.value).sort(),
-    ["1", "10", "3", "unlimited"],
+    ["limit 1", "limit 10", "limit 3", "limit unlimited"],
   );
-  const active = items.find((i) => i.value === "3");
+  const active = items.find((i) => i.value === "limit 3");
   assert.match(active.label, /✓/, "the leaf in effect is marked in the label");
-  assert.match(active.description, /● AKTIVNÍ/);
+  assert.match(active.description, /● ACTIVE/);
   assert.doesNotMatch(
-    items.find((i) => i.value === "unlimited").description,
-    /AKTIVNÍ/,
+    items.find((i) => i.value === "limit unlimited").description,
+    /● ACTIVE/,
     "exactly one leaf may claim to be active",
   );
 });
@@ -166,6 +169,45 @@ test("--global limit carries the value, not just the setting", () => {
     items.map((i) => i.value).sort(),
     ["--global limit 1", "--global limit 10", "--global limit 3", "--global limit unlimited"],
   );
+});
+
+test("a fully typed non-terminal token reveals its child list (lazy completion)", () => {
+  const { command } = setup({ config: { enabled: true, echo: true, cardLimit: 3 } });
+
+  const limitItems = command.getArgumentCompletions("limit") ?? [];
+  assert.deepEqual(
+    limitItems.map((i) => i.value).sort(),
+    ["limit 1", "limit 10", "limit 3", "limit unlimited"],
+    "bare `limit` must offer the value leaves, not just the parent row",
+  );
+
+  const langItems = command.getArgumentCompletions("lang") ?? [];
+  assert.deepEqual(
+    langItems.map((i) => i.value),
+    ["lang en", "lang cs"],
+    "bare `lang` must offer the locales",
+  );
+
+  const globalItems = command.getArgumentCompletions("--global") ?? [];
+  assert.deepEqual(
+    globalItems.map((i) => i.value).sort(),
+    ["--global lang ", "--global limit ", "--global off", "--global on"],
+    "bare `--global` must offer the settings it can carry",
+  );
+});
+
+test("command feedback follows the configured locale", () => {
+  const { cwd, globalFile } = sandbox();
+  const { command, state, ctx } = setup({ globalFile, ctx: { cwd } });
+  state.config = { ...state.config, lang: "cs" };
+
+  command.handler("off", ctx);
+
+  assert.match(ctx.notes[0].message, /ztlumeno/, "the mute notice speaks the configured language");
+
+  command.handler("zzz", ctx);
+
+  assert.match(ctx.notes[1].message, /Neznámý podpříkaz/);
 });
 
 test("/quick-win limit persists only the changed key", () => {
